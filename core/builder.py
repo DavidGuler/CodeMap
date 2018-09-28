@@ -3,7 +3,8 @@ Define and implement the Builder class.
 """
 
 from CodeViewer.core.base_elements.base_elements import BaseCodeElement, BaseCodeConnection
-from CodeViewer.core.builder.consts import UnknownElementType, PackageIsNotFound, BuilderConsts
+from CodeViewer.core.builder.consts import UnknownElementType, PackageIsNotFound, \
+										   UnindetifiedElement, BuilderConsts
 from pkgutil import walk_packages
 import sys
 
@@ -25,7 +26,8 @@ class Builder(object):
 		"""
 		self._set_elements(Builder._CODE_ELEMENTS)
 		self._set_elements(Builder._CODE_CONNECTIONS)
-		self._cached_code_element = dict()
+		self._cache = dict()
+		self._is_pkg = True
 
 	def create_code_element(self, code_element_obj, root_code_element=None):
 		"""
@@ -42,8 +44,7 @@ class Builder(object):
 
 		# Create a connection between the new code_element and root_code_element.
 		if root_code_element:
-			code_connection = self._create_code_connection(root_code_element, code_element)
-			root_code_element.code_connections.append(code_connection)
+			self._create_code_connection(root_code_element, code_element)
 			
 		return code_element
 
@@ -51,16 +52,33 @@ class Builder(object):
 		"""
 		build(pkg_name, pkg_path=None) -> CodeElement
 
-		
+		The main logic of processing the package into a CodeElement tree.
+
+		:param	pkg_name(str) -> The name of package to import.
+		:param	pkg_path(str) -> Optional. A path to add to sys.path in order
+								 to import the package.
+		:return CodeElement -> Return the code structure of the package requested.
 		"""
+
+		# Test if the package exists.
 		self._test_pkg(pkg_name, pkg_path)
-		if pkg_name not in self._cached_code_element.keys():
-			code_element = self.create_code_element(pkg_name)
-			self._cached_code_element[pkg_name] = self._build(code_element, True)
-		return self._cached_code_element[pkg_name]
+
+		# Returns the processed code structure of the package.
+		return self._cache.setdefault(pkg_name, self._build(self.create_code_element(pkg_name)))
 
 	@classmethod
 	def register_element(cls, element_cls):
+		"""
+		register_element(cls, element_cls) -> type
+
+		A decorator for registering elements to the Builder class.
+		necessary for identifying code elements found in a package.
+
+		:param	element_cls(type) -> The element class decorated.
+		:return element_cls(type)
+		"""
+
+		# Add the class found to the registry if it is a valid one.
 		if issubclass(element_cls, BaseCodeConnection):
 			cls._CODE_CONNECTIONS[element_cls.__name__] = element_cls
 		elif issubclass(element_cls, BaseCodeElement):
@@ -71,59 +89,135 @@ class Builder(object):
 		return element_cls
 
 	def _test_pkg(self, pkg_name, pkg_path=None):
+		"""
+		_test_pkg(self, pkg_name, pkg_path=None)
+
+		Tests if the package received exists. If received
+		a path, adds it to sys.path and then tests the package.
+
+		:param	pkg_name(str) -> The name of package to import.
+		:param	pkg_path(str) -> Optional. A path to add to sys.path in order
+								 to import the package.
+		"""
+
+		# Adds the package's path to sys.path.
 		if pkg_path:
 			sys.path.append(pkg_path)
 
+		# Test if the package exists.
 		if not pkgutil.get_loader(pkg_name):
 			raise PackageIsNotFound(pkg_name)
 
 	def _set_elements(self, elements_dict):
+		"""
+		_set_elements(self, elements_dict)
+
+		Sets the elements received as instance attributes.
+
+		:param	elements_dict(Dict) -> The elements to set as attriburtes.
+		"""
 		for element_name, element_cls in elements_dict.items():
 			setattr(self, element_name, element_cls)
 
 	def _create_code_element(self, code_element_obj):
+		"""
+		_create_code_element(self, code_element_obj) -> CodeElement
+
+		Creates a code element from a matching CodeElement subclass.
+
+		:param	code_element_obj(CodeElement) -> The object to process.
+		:return CodeElement
+		"""
 		for element_cls in Builder._CODE_ELEMENTS.values():
 			if element_cls.match(code_element_obj):
 				return element_cls(code_element_obj)
+		raise UnindetifiedElement(code_element_obj, CodeElement)
 
 	def _create_code_connection(self, root_code_element, code_element):
+		"""
+		_create_code_connection(self, root_code_element, code_element) -> CodeConnection
+
+		Creates a code connection from a matching CodeConnection subclass,
+		and add it to the root code connection.
+
+		:param	root_code_element(CodeElement) -> The object to process.
+		:param	code_element(CodeElement) -> The object to process.
+		"""
 		for element_cls in Builder._CODE_CONNECTIONS.values():
 			if element_cls.match(root_code_element, code_element):
-				return element_cls(code_element)
+				root_code_connection.code_connections.append(element_cls(code_element))
+		raise UnindetifiedElement((root_code_element, code_element_obj), CodeConnection)
 
 	def _is_in_pkg(self, code_element):
+		"""
+		_is_in_pkg(self, code_element) -> Bool
+
+		Tests of the code element is part of the package or outsourced.
+
+		:param	code_element(CodeElement) -> A code element to test.
+		"""
 		return self.pkg == code_element.name.split(".", 1)[0]
 
-	def _get_build_pre_loop_values(self, is_pkg, code_element):
-		if is_pkg:
-			return pkgutil.walk_packages, (list(code_element.obj),)
-		else:
-			return dir, (code_element.path)
+	def _build_iterator(self, code_element):
+		"""
+		_build_iterator(self, code_element) -> generator/filter
 
-	def _get_build_in_loop_values(self, is_pkg, code_element, sub_code_element_data)
-		if is_pkg:
-			return ".".join([code_element.name, sub_code_element_data.name])
-		else:
-			if sub_code_element_data.startswith(BuilderConsts.SKIPPED_PREFIXES):
-				return getattr(code_element, sub_code_element_data)
+		Retrieves the correct iterator for the building mechanism.
 
-	def _get_build_loop_condition_values(self, is_pkg, sub_code_element)
-		if is_pkg:
-			return sub_code_element.is_pkg, True
-		else:
-			return is_pkg, self._is_in_pkg(sub_code_element)
+		:param	code_element(Object)
+		:return filter, generator
+		"""
+		if self._is_pkg:
+			return pkgutil.walk_packages(list(code_element.obj))
+		return filter(lambda d: d.startswith(BuilderConsts.SKIPPED_PREFIXES), dir(code_element.obj))
 
-	def _build(self, code_element, is_pkg):
-		loop_method, loop_method_args = self._get_build_pre_loop_values(is_pkg, code_element)
+	def _extract_obj(self, code_element, data):
+		"""
+		_extract_obj(self, code_element, data) -> str/obj
 
-		for sub_code_element_data in loop_method(*loop_method_args):
-			sub_code_element_obj = self._get_build_in_loop_values(is_pkg, code_element, \
-																  sub_code_element_data)
-			sub_code_element = self.create_code_element(sub_code_element_obj, code_element)
+		Extracts the necessary object from the code element using the data.
 
-			is_pkg, loop_condition = self._get_build_loop_condition_values(is_pkg, sub_code_element)
+		:param	code_element(CodeElement)
+		:param	data(pkgutil.ModuleInfo, str)
+		:return str/obj
+		"""
+		if self._is_pkg:
+			return ".".join([code_element.name, data.name])
+		return getattr(code_element, data)
 
-			if loop_condition:
-				self._build(sub_code_element, is_pkg)
+	def _check_sentinel(self, code_element):
+		"""
+		_check_sentinel(self, code_element) -> Bool
+
+		Checks if a sentinel was found, depends on the iterator.
+
+		:param	code_element(CodeElement)
+		:return Bool
+		"""
+		if self._is_pkg:
+
+			# Set the _is_pkg flag according to the current code_element in the iterator.
+			self._is_pkg = code_element.is_pkg
+			return True
+
+		return self._is_in_pkg(code_element)
+
+	def _build(self, code_element):
+		"""
+		_build(self, code_element) -> CodeElement
+
+		Processes all the sub code element found in code_element,
+		based on the iterator.
+
+		:param	code_element(CodeElement)
+		"""
+		for data in self._build_iterator(code_element): 
+
+			# Create a sub code element found in the iterator.
+			sub_code_element = self.create_code_element(self._extract_obj(code_element, data), \
+														code_element)
+
+			if _check_sentinel(sub_code_element):
+				self._build(sub_code_element)
 
 		return code_element
