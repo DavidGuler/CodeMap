@@ -12,5 +12,6 @@ class BaseElement(object, metaclass=abc.ABCMeta):
 	def view(self, master):
 		return False
 
-	def match(self, *args, **kwargs):
-		return self._match(*args, **kwargs)
+	@classmethod
+	def match(cls, *args, **kwargs):
+		return cls._match(*args, **kwargs)

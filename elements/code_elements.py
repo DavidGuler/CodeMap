@@ -1,21 +1,31 @@
-from CodeViewer.core.builder.builder import Builder
-from CodeViewer.core.base_elements.base_elements import BaseCodeElement
-from CodeViewer.core.util import load_module
+from CodeMap.core.builder import Builder
+from CodeMap.core.base_elements.base_code_element import BaseCodeElement
+from CodeMap.core.util import load_mod
 import tkinter
 import sys
 import copy
+import pkgutil
+import importlib
 
 ######------ BaseCodeElement subs implementations ------######
 
 @Builder.register_element
 class CE_Package(BaseCodeElement):
 	def __init__(self, pkg_name):
-		super(CE_Class, self).__init__(self, load_module(pkg_name))
+		super(CE_Package, self).__init__(importlib.util.find_spec(pkg_name).loader.load_module(pkg_name))
 
-	@staticmethod
-	def match(obj):
-		pkg_loader = pkgutil.get_loader(pkg_name)
+	@classmethod
+	def _match(cls, obj):
+		pkg_loader = pkgutil.get_loader(obj)
 		return pkg_loader.is_package(pkg_loader.name)
+
+	@property
+	def fullname(self):
+		return self.obj.__name__
+	
+	@property
+	def name(self):
+		return self.fullname.rsplit(DELIM, 1)[1]
 
 	def view(self, master):
 		#TODO: Implement
@@ -26,9 +36,9 @@ class CE_Package(BaseCodeElement):
 class CE_Module(CE_Package):
 	"""docstring for CE_Module"""
 
-	@staticmethod
-	def match(obj):
-		return not super().match(obj)
+	@classmethod
+	def _match(cls, obj):
+		return not super(cls).match(obj)
 
 	def view(obj):
 		pass
@@ -37,8 +47,8 @@ class CE_Module(CE_Package):
 @Builder.register_element
 class CE_Class(BaseCodeElement):
 
-	@staticmethod
-	def match(obj):
+	@classmethod
+	def _match(cls, obj):
 		if isinstance(obj, type):
 			return True
 
@@ -48,16 +58,16 @@ class CE_Class(BaseCodeElement):
 
 
 @Builder.register_element
-class CE_Function(object):
+class CE_Function(BaseCodeElement):
 	"""docstring for CE_Function"""
 
 	@classmethod
-	def _match(cls, obj, is_method):
+	def _identify(cls, obj, is_method):
 		return obj.__class__ == "function" and ("." in obj.__qualname__) == is_method
 		
-	@staticmethod
-	def match(obj):
-		return CE_Function._match(obj, False)
+	@classmethod
+	def _match(cls, obj):
+		return cls._identify(obj, False)
 
 	def view(self, master):
 		pass
@@ -66,16 +76,16 @@ class CE_Function(object):
 @Builder.register_element
 class CE_Method(CE_Function):
 	
-	@staticmethod
-	def match(obj):
-		return super()._match(obj, True)
+	@classmethod
+	def _match(cls, obj):
+		return super(cls)._match(obj, True)
 
 	def view(self, master):
 		pass
 
 
 @Builder.register_element
-class CE_Variable(object):
+class CE_Variable(BaseCodeElement):
 	def __init__(self, value):
 		self._name = self._get_var_name(value)
 		super(CE_Variable, self).__init__(value)
@@ -92,8 +102,8 @@ class CE_Variable(object):
 		return self._name
 	
 	@staticmethod
-	def match(obj):
-		pass
+	def _match(cls, obj):
+		return True
 
 	def view(self, master):
 		pass

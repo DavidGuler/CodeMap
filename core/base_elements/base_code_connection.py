@@ -13,7 +13,7 @@ class BaseCodeConnection(BaseElement):
 	def __init__(self, connected_code_element):
 		self.connected_code_element = connected_code_element
 
-	@staticmethod
+	@classmethod
 	@abc.abstractmethod
-	def _match(code_element_1, code_element_2):
+	def _match(cls, code_element_1, code_element_2):
 		return False

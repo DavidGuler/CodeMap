@@ -19,10 +19,14 @@ class BaseCodeElement(BaseElement):
 		return type(self.obj)
 
 	@property
-	def name(self):
+	def fullname(self):
 		return ".".join([self.obj.__module__, self.obj.__name__])
 
-	@staticmethod
+	@property
+	def name(self):
+		return self.obj.__name__
+
+	@classmethod
 	@abc.abstractmethod
-	def _match(obj):
+	def _match(cls, obj):
 		return False
