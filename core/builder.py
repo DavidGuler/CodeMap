@@ -1,11 +1,16 @@
 """
-Define and implement the Builder class.
+~
+Name: builder
+Purpose: Define and implement the Builder class.
+Author: DavidGuler (davidguler.1x@gmail.com)
+~
 """
 
-from CodeViewer.core.base_elements.base_elements import BaseCodeElement, BaseCodeConnection
-from CodeViewer.core.builder.consts import UnknownElementType, PackageIsNotFound, \
+from CodeMap.core.base_elements.base_code_element import BaseCodeElement
+from CodeMap.core.base_elements.base_code_connection import BaseCodeConnection
+from CodeMap.core.consts import UnknownElementType, PackageIsNotFound, \
 										   UnindetifiedElement, BuilderConsts
-from pkgutil import walk_packages
+import pkgutil
 import sys
 
 class Builder(object):
@@ -129,7 +134,7 @@ class Builder(object):
 		:return CodeElement
 		"""
 		for element_cls in Builder._CODE_ELEMENTS.values():
-			if element_cls.match(code_element_obj):
+			if code_element_obj and element_cls.match(code_element_obj):
 				return element_cls(code_element_obj)
 		raise UnindetifiedElement(code_element_obj, CodeElement)
 
@@ -168,7 +173,7 @@ class Builder(object):
 		:return filter, generator
 		"""
 		if self._is_pkg:
-			return pkgutil.walk_packages(list(code_element.obj))
+			return pkgutil.walk_packages(code_element.obj.__path__)
 		return filter(lambda d: d.startswith(BuilderConsts.SKIPPED_PREFIXES), dir(code_element.obj))
 
 	def _extract_obj(self, code_element, data):

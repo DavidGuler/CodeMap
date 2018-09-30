@@ -1,3 +1,6 @@
+import os.path
+import re
+
 FILE_DOC_FORMAT = """~
 Name: {0}
 Purpose: {1}
@@ -5,6 +8,7 @@ Author: DavidGuler (davidguler.1x@gmail.com)
 ~"""
 PACKAGE_PATH = os.path.dirname(__file__)
 REGEX_FOR_DOC = re.compile("~\n")
+DELIM = "."
 
 
 class UnknownElementType(Exception):
@@ -30,7 +34,7 @@ class UnindetifiedElement(Exception):
 
 	def __str__(self):
 		return "The element/s {element_obj} couldn't be transformed to {to_type}!".format(\
-				element_obj=self.element_obj), to_type=self.to_type
+				element_obj=self.element_obj, to_type=self.to_type)
 
 
 class BuilderConsts():
